@@ -1,0 +1,12 @@
+[project]
+name = "liars-dice"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13.6"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "lefthook>=2.0.2",
+]
