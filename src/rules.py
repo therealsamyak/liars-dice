@@ -21,9 +21,26 @@ def is_legal_bid(new_bid: Bid, D_last: Bid | None) -> bool:
     """
     LEGAL(D): Check if a bid is legal according to the rules.
 
+    Standard Liar's Dice bidding rules:
+    - Each subsequent bid must increase either quantity OR face value (or both)
+    - You can increase quantity while keeping same face value
+    - You can increase face value while keeping same or higher quantity
+    - You can increase both quantity and face value
+    - You CANNOT decrease quantity when increasing face value
+    - You CANNOT decrease face value
+    - You CANNOT decrease quantity when keeping same face value
+
+    Examples:
+    - "three 3s" → "four 3s" ✓ valid (increase quantity, same value)
+    - "three 3s" → "three 4s" ✓ valid (increase value, same quantity)
+    - "three 3s" → "four 4s" ✓ valid (increase both)
+    - "three 3s" → "two 4s" ✗ invalid (increase value but decrease quantity)
+    - "four 4s" → "three 3s" ✗ invalid (decrease both)
+    - "three 3s" → "two 3s" ✗ invalid (decrease quantity, same value)
+
     LEGAL(D) = {
         True  if D = ∅ (first bid, any valid bid allowed)
-        True  if DiceValue_new > DiceValue_current
+        True  if DiceValue_new > DiceValue_current and Amount_new >= Amount_current
         True  if DiceValue_new = DiceValue_current and Amount_new > Amount_current
         False otherwise
     }
@@ -32,11 +49,13 @@ def is_legal_bid(new_bid: Bid, D_last: Bid | None) -> bool:
         # D = ∅: first bid - any valid bid is allowed
         return True
 
-    # DiceValue_new > DiceValue_current
-    if new_bid.value > D_last.value:
+    # DiceValue_new > DiceValue_current and Amount_new >= Amount_current
+    # When increasing value, amount must be same or higher (cannot decrease)
+    if new_bid.value > D_last.value and new_bid.amount >= D_last.amount:
         return True
 
     # DiceValue_new = DiceValue_current and Amount_new > Amount_current
+    # When keeping same value, must increase amount
     if new_bid.value == D_last.value and new_bid.amount > D_last.amount:
         return True
 
@@ -49,14 +68,20 @@ def check_win_condition(
     D_last: Bid,
 ) -> int | None:
     """
-    WIN(s): Determine the winner after a LIAR call.
+    WIN(s, caller): Determine the winner after a LIAR call.
 
-    WIN(s) = {
-        P1  if a = C, G_o' = GameOver, COUNT(H1 ∪ H2, D_last.Value) < D_last.Amount
-        P2  if a = C, G_o' = GameOver, COUNT(H1 ∪ H2, D_last.Value) >= D_last.Amount
-        P1  if opponent calls liar, COUNT(H1 ∪ H2, D_last.Value) >= D_last.Amount
-        P2  if opponent calls liar, COUNT(H1 ∪ H2, D_last.Value) < D_last.Amount
-        None if G_o' = Active
+    Matches MATH.md win conditions:
+    - If caller = 1 and COUNT < Amount: P1 wins (caller was correct)
+    - If caller = 1 and COUNT >= Amount: P2 wins (bidder was correct)
+    - If caller = 2 and COUNT >= Amount: P1 wins (bidder was correct)
+    - If caller = 2 and COUNT < Amount: P2 wins (caller was correct)
+
+    WIN(s, caller) = {
+        P1  if caller = 1, G_o = GameOver, COUNT(H1 ∪ H2, D_last.Value) < D_last.Amount
+        P2  if caller = 1, G_o = GameOver, COUNT(H1 ∪ H2, D_last.Value) >= D_last.Amount
+        P1  if caller = 2, G_o = GameOver, COUNT(H1 ∪ H2, D_last.Value) >= D_last.Amount
+        P2  if caller = 2, G_o = GameOver, COUNT(H1 ∪ H2, D_last.Value) < D_last.Amount
+        None if G_o = Active
     }
 
     Returns:
