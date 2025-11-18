@@ -38,6 +38,7 @@ class OptimalPolicy:
                 return Bid(value=1, amount=1)
 
         # Calculate probability that the last bid is valid
+        # D_last = last_bid, H1 = obs.hand1, N = self.num_dice_per_player
         prob_valid = p_valid(last_bid, obs.hand1, self.num_dice_per_player)
 
         # If probability is very low, call LIAR
@@ -50,6 +51,7 @@ class OptimalPolicy:
             # Can increase value
             new_value = last_bid.value + 1
             # Make a conservative bid: what we have plus expected
+            # c1 = COUNT(H1, v*)
             c1 = sum(1 for die in obs.hand1 if die == new_value)
             expected_opponent = self.num_dice_per_player // 6
             new_amount = c1 + max(1, expected_opponent)

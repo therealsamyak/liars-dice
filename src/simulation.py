@@ -31,17 +31,21 @@ class GameSimulation:
             hand1=hand1, hand2=hand2, bid_history=[], game_status=GameStatus.ACTIVE
         )
 
+        # Randomly choose starting player
+        starting_player = random.randint(1, 2)
+
         if verbose:
             print("=" * 60)
             print("GAME START")
             print("=" * 60)
             print(f"Player 1 hand: {hand1}")
             print(f"Player 2 hand: {hand2}")
+            print(f"Starting player: Player {starting_player}")
             print("Bid history: []")
             print("-" * 60)
 
         turn_number = 1  # Track turns from Player 1's perspective
-        current_player = 1  # 1 = Player 1, 2 = Player 2
+        current_player = starting_player
 
         while state.game_status == GameStatus.ACTIVE:
             if current_player == 1:
@@ -70,7 +74,7 @@ class GameSimulation:
                         print("Player 1 calls LIAR!")
                     state.game_status = GameStatus.GAME_OVER
                     winner = check_win_condition(
-                        state, caller=1, last_bid=state.bid_history[-1]
+                        state, caller=1, D_last=state.bid_history[-1]
                     )
                     if verbose:
                         last_bid = state.bid_history[-1]
@@ -115,7 +119,7 @@ class GameSimulation:
                         print("Player 2 calls LIAR!")
                     state.game_status = GameStatus.GAME_OVER
                     winner = check_win_condition(
-                        state, caller=2, last_bid=state.bid_history[-1]
+                        state, caller=2, D_last=state.bid_history[-1]
                     )
                     if verbose:
                         last_bid = state.bid_history[-1]
