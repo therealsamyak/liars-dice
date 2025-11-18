@@ -24,3 +24,7 @@ python run main.py
 ## Math
 
 See [`MATH.md`](./MATH.md) for the mathematical formulation, state space definitions, and optimal policy calculations.
+
+## Disclaimer
+
+- The Math and Code were both developed using AI agent assistance. Prompts can be found within the `prompts/` folder.
