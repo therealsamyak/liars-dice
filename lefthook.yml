@@ -8,3 +8,6 @@ pre-commit:
     ruff-format:
       glob: '*.py'
       run: uvx ruff format {staged_files}
+
+    prettier:
+      run: bunx prettier --write . || true
