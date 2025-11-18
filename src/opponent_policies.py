@@ -32,6 +32,7 @@ class TruthTellingPolicy:
         # First, check if the last bid is actually impossible (definitely invalid)
         # A truth-telling opponent only calls LIAR if the bid is impossible
         # The bid is impossible if: our dice + maximum possible from opponent < bid amount
+        # c2 = COUNT(H2, v*)
         c2_last = count_dice(hand2, last_bid.value)
         max_possible_from_opponent = (
             self.num_dice_per_player
@@ -48,6 +49,7 @@ class TruthTellingPolicy:
         # First, try all truthful bids (bids we can verify are true)
         # Try increasing value first (preferred strategy)
         for value in range(last_bid.value + 1, 7):
+            # c2 = COUNT(H2, v*)
             c2 = count_dice(hand2, value)
             # When increasing value, minimum legal amount is 1
             # Try amounts from 1 up to what we can truthfully bid
@@ -63,6 +65,7 @@ class TruthTellingPolicy:
 
         # Try increasing amount on same value (if we can do it truthfully)
         if last_bid.value <= 6:
+            # c2 = COUNT(H2, v*)
             c2 = count_dice(hand2, last_bid.value)
             new_amount = last_bid.amount + 1
             total_expected = c2 + expected_opponent
