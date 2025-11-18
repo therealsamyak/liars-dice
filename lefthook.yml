@@ -3,7 +3,7 @@ pre-commit:
   commands:
     ruff-check:
       glob: "*.py"
-      run: uvx ruff check {staged_files}
+      run: uvx ruff check --fix {staged_files}
       stage_fixed: true
 
     ruff-format:
@@ -12,5 +12,6 @@ pre-commit:
       stage_fixed: true
 
     prettier:
-      run: bunx prettier --write . || true
+      glob: "*.{yml,yaml,md}"
+      run: bunx prettier --write {staged_files} || true
       stage_fixed: true
