@@ -1,3 +1,5 @@
+WITH CLAUDE.AI
+
 ## 1 Game Liar's Dice
 
 - Each player rolls N dice, hidden from the other players.
