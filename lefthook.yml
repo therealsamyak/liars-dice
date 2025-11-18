@@ -2,12 +2,15 @@ pre-commit:
   parallel: false
   commands:
     ruff-check:
-      glob: '*.py'
+      glob: "*.py"
       run: uvx ruff check {staged_files}
+      stage_fixed: true
 
     ruff-format:
-      glob: '*.py'
+      glob: "*.py"
       run: uvx ruff format {staged_files}
+      stage_fixed: true
 
     prettier:
       run: bunx prettier --write . || true
+      stage_fixed: true
