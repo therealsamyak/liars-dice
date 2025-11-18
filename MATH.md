@@ -1,4 +1,4 @@
-## 1 Game Liar's Dice
+## 1 Game 2 Player Liar's Dice
 
 Authors: Samyak Kakatur, Alexander Chang
 
