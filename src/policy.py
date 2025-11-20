@@ -4,6 +4,7 @@ import json
 import os
 from collections import Counter
 
+from parameters import LIAR_THRESHOLD
 from src.game_state import Bid, ObservableState
 from src.probability import p_valid
 
@@ -95,7 +96,7 @@ class OptimalPolicy:
         prob_valid = p_valid(last_bid, obs.hand1, self.num_dice_per_player)
 
         # If probability is very low, call LIAR
-        if prob_valid < 0.1:
+        if prob_valid < LIAR_THRESHOLD:
             return None
 
         # Otherwise, make a higher bid
