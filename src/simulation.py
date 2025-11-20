@@ -2,7 +2,14 @@
 
 import random
 
-from src.game_state import GameStatus, State, observable_from_state
+from src.game_state import (
+    Bid,
+    GameStatus,
+    ObservableState,
+    State,
+    observable_from_state,
+)
+from parameters import NUM_DICE_PER_PLAYER
 from src.opponent_policies import TruthTellingPolicy
 from src.policy import OptimalPolicy
 from src.probability import p_valid
@@ -12,10 +19,23 @@ from src.rules import check_win_condition
 class GameSimulation:
     """Simulates a game of Liar's Dice."""
 
-    def __init__(self, num_dice_per_player: int = 5):
+    def __init__(
+        self,
+        num_dice_per_player: int = NUM_DICE_PER_PLAYER,
+        player2_policy_type: str = "truth_telling",
+    ):
+        """
+        Args:
+            num_dice_per_player: Number of dice each player has
+            player2_policy_type: "truth_telling" or "optimal" (uses same policy as Player 1)
+        """
         self.num_dice_per_player = num_dice_per_player
         self.player1_policy = OptimalPolicy(num_dice_per_player)
-        self.opponent_policy = TruthTellingPolicy(num_dice_per_player)
+
+        if player2_policy_type == "optimal":
+            self.player2_policy = OptimalPolicy(num_dice_per_player)
+        else:
+            self.player2_policy = TruthTellingPolicy(num_dice_per_player)
 
     def roll_dice(self, num_dice: int) -> list[int]:
         """Roll N dice."""
@@ -70,27 +90,38 @@ class GameSimulation:
 
                 if action is None:
                     # Player 1 calls LIAR
-                    if verbose:
-                        print("Player 1 calls LIAR!")
-                    state.game_status = GameStatus.GAME_OVER
-                    winner = check_win_condition(
-                        state, caller=1, D_last=state.bid_history[-1]
-                    )
-                    if verbose:
-                        last_bid = state.bid_history[-1]
-                        total = sum(
-                            1 for d in state.hand1 + state.hand2 if d == last_bid.value
+                    if not state.bid_history:
+                        # Should not happen - can't call LIAR with no bids
+                        # Fallback: make a minimal bid
+                        action = Bid(value=1, amount=1)
+                        if verbose:
+                            print(
+                                "Player 1 cannot call LIAR with no bids, making minimal bid"
+                            )
+                    else:
+                        if verbose:
+                            print("Player 1 calls LIAR!")
+                        state.game_status = GameStatus.GAME_OVER
+                        winner = check_win_condition(
+                            state, caller=1, D_last=state.bid_history[-1]
                         )
-                        print("\n" + "=" * 60)
-                        print("GAME OVER")
-                        print("=" * 60)
-                        print(f"Last bid: {last_bid}")
-                        print(f"Total {last_bid.value}s across both hands: {total}")
-                        print(f"Player 1 hand: {state.hand1}")
-                        print(f"Player 2 hand: {state.hand2}")
-                        print(f"Winner: Player {winner}")
-                        print("=" * 60)
-                    return winner, state
+                        if verbose:
+                            last_bid = state.bid_history[-1]
+                            total = sum(
+                                1
+                                for d in state.hand1 + state.hand2
+                                if d == last_bid.value
+                            )
+                            print("\n" + "=" * 60)
+                            print("GAME OVER")
+                            print("=" * 60)
+                            print(f"Last bid: {last_bid}")
+                            print(f"Total {last_bid.value}s across both hands: {total}")
+                            print(f"Player 1 hand: {state.hand1}")
+                            print(f"Player 2 hand: {state.hand2}")
+                            print(f"Winner: Player {winner}")
+                            print("=" * 60)
+                        return winner, state
                 else:
                     # Player 1 makes a bid
                     if verbose:
@@ -111,31 +142,55 @@ class GameSimulation:
                     )
                     print(f"  Bid requires: {last_bid.amount}")
 
-                action = self.opponent_policy.get_action(state.hand2, state.bid_history)
+                # Player 2's action depends on policy type
+                if isinstance(self.player2_policy, OptimalPolicy):
+                    # Player 2 uses optimal policy (observable state from their perspective)
+                    obs2 = ObservableState(
+                        hand1=state.hand2,  # Player 2's hand is their "hand1"
+                        bid_history=state.bid_history.copy(),
+                        game_status=state.game_status,
+                    )
+                    action = self.player2_policy.get_action(obs2)
+                else:
+                    # Player 2 uses truth-telling policy
+                    action = self.player2_policy.get_action(
+                        state.hand2, state.bid_history
+                    )
 
                 if action is None:
                     # Player 2 calls LIAR
-                    if verbose:
-                        print("Player 2 calls LIAR!")
-                    state.game_status = GameStatus.GAME_OVER
-                    winner = check_win_condition(
-                        state, caller=2, D_last=state.bid_history[-1]
-                    )
-                    if verbose:
-                        last_bid = state.bid_history[-1]
-                        total = sum(
-                            1 for d in state.hand1 + state.hand2 if d == last_bid.value
+                    if not state.bid_history:
+                        # Should not happen - can't call LIAR with no bids
+                        # Fallback: make a minimal bid
+                        action = Bid(value=1, amount=1)
+                        if verbose:
+                            print(
+                                "Player 2 cannot call LIAR with no bids, making minimal bid"
+                            )
+                    else:
+                        if verbose:
+                            print("Player 2 calls LIAR!")
+                        state.game_status = GameStatus.GAME_OVER
+                        winner = check_win_condition(
+                            state, caller=2, D_last=state.bid_history[-1]
                         )
-                        print("\n" + "=" * 60)
-                        print("GAME OVER")
-                        print("=" * 60)
-                        print(f"Last bid: {last_bid}")
-                        print(f"Total {last_bid.value}s across both hands: {total}")
-                        print(f"Player 1 hand: {state.hand1}")
-                        print(f"Player 2 hand: {state.hand2}")
-                        print(f"Winner: Player {winner}")
-                        print("=" * 60)
-                    return winner, state
+                        if verbose:
+                            last_bid = state.bid_history[-1]
+                            total = sum(
+                                1
+                                for d in state.hand1 + state.hand2
+                                if d == last_bid.value
+                            )
+                            print("\n" + "=" * 60)
+                            print("GAME OVER")
+                            print("=" * 60)
+                            print(f"Last bid: {last_bid}")
+                            print(f"Total {last_bid.value}s across both hands: {total}")
+                            print(f"Player 1 hand: {state.hand1}")
+                            print(f"Player 2 hand: {state.hand2}")
+                            print(f"Winner: Player {winner}")
+                            print("=" * 60)
+                        return winner, state
                 else:
                     # Player 2 makes a bid
                     if verbose:

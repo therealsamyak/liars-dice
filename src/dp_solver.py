@@ -8,6 +8,7 @@ import json
 from collections import defaultdict
 from itertools import product
 
+from parameters import MAX_BID_AMOUNT, MAX_DICE_VALUE
 from src.game_state import Bid, GameStatus, ObservableState, State
 from src.opponent_policies import TruthTellingPolicy
 from src.rules import check_win_condition
@@ -19,16 +20,18 @@ def generate_all_hands(num_dice: int) -> list[tuple[int, ...]]:
 
 
 def generate_all_legal_bids(
-    last_bid: Bid | None, max_value: int = 6, max_amount: int = 20
+    last_bid: Bid | None,
+    max_value: int = MAX_DICE_VALUE,
+    max_amount: int = MAX_BID_AMOUNT,
 ) -> list[Bid]:
     """Generate all legal bids given the last bid.
 
     Bids are generated in priority order:
-    1. First: increase face value (amount >= current amount, ordered by value then amount)
+    1. First: increase face value (any quantity allowed, ordered by value then amount)
     2. Then: same face value, increase amount
 
     This ensures fixed bid order with priority: value first, then amount.
-    Matches MATH.md: when increasing value, amount must be >= current amount.
+    Matches MATH.md: when increasing value, any amount is allowed.
     """
     if last_bid is None:
         # First bid: all possible bids, ordered by value then amount
@@ -39,12 +42,10 @@ def generate_all_legal_bids(
         return bids
 
     bids = []
-    # Priority 1: Increase value (amount must be >= current amount)
+    # Priority 1: Increase value (any amount allowed when increasing value)
     # Ordered by value first, then amount (lowest first)
     for value in range(last_bid.value + 1, max_value + 1):
-        for amount in range(
-            last_bid.amount, max_amount + 1
-        ):  # Start from current amount
+        for amount in range(1, max_amount + 1):  # Any amount allowed
             bids.append(Bid(value=value, amount=amount))
 
     # Priority 2: Same value, increase amount
@@ -52,6 +53,34 @@ def generate_all_legal_bids(
         bids.append(Bid(value=last_bid.value, amount=amount))
 
     return bids
+
+
+def get_bid_position(
+    bid: Bid | None, max_value: int = MAX_DICE_VALUE, max_amount: int = MAX_BID_AMOUNT
+) -> int:
+    """Get position of bid in total ordering of all possible bids.
+
+    Bids are ordered by: value first, then amount.
+    Position 0 = first possible bid (1,1)
+    Position N-1 = last possible bid (6, max_amount)
+
+    Returns:
+        Position/index of bid in total ordering, or 0 if bid is None
+    """
+    if bid is None:
+        return 0
+
+    # Total ordering: (1,1), (1,2), ..., (1,max_amount), (2,1), (2,2), ..., (6,max_amount)
+    # Position = (value-1) * max_amount + (amount-1)
+    position = (bid.value - 1) * max_amount + (bid.amount - 1)
+    return position
+
+
+def get_max_bid_position(
+    max_value: int = MAX_DICE_VALUE, max_amount: int = MAX_BID_AMOUNT
+) -> int:
+    """Get total number of possible bids (max position + 1)."""
+    return max_value * max_amount
 
 
 def state_key(obs: ObservableState) -> str:
@@ -90,14 +119,25 @@ class DPSolver:
     computing optimal actions from terminal states backwards.
     """
 
-    def __init__(self, num_dice_per_player: int, opponent_policy: TruthTellingPolicy):
+    def __init__(
+        self,
+        num_dice_per_player: int,
+        opponent_policy: TruthTellingPolicy,
+        max_value: int = MAX_DICE_VALUE,
+        max_amount: int = MAX_BID_AMOUNT,
+    ):
         self.num_dice_per_player = num_dice_per_player
         self.opponent_policy = opponent_policy
+        self.max_value = max_value
+        self.max_amount = max_amount
         self.value_function: dict[str, float] = {}
         self.policy: dict[str, dict | None] = {}  # None means call LIAR
         self.all_hands = generate_all_hands(num_dice_per_player)
         self.num_hands = len(self.all_hands)
         self.hand_prob = 1.0 / self.num_hands  # Uniform prior
+        self.max_depth = get_max_bid_position(
+            max_value, max_amount
+        )  # Total number of possible bids
 
     def solve(self):
         """Solve using backward induction over all states."""
@@ -108,8 +148,17 @@ class DPSolver:
 
         print("Enumerating all observable states...")
         all_visited = set()  # Track all states across all hands
+
+        hand_count = 0
         for hand1_tuple in self.all_hands:
             hand1 = list(hand1_tuple)
+            hand_count += 1
+            if hand_count % 100 == 0:
+                total_states = sum(len(states) for states in states_by_depth.values())
+                print(
+                    f"  Hand {hand_count}/{self.num_hands}: {total_states} states enumerated so far..."
+                )
+
             # Start with empty bid history (depth 0)
             obs = ObservableState(
                 hand1=hand1, bid_history=[], game_status=GameStatus.ACTIVE
@@ -119,8 +168,13 @@ class DPSolver:
                 states_by_depth[0].append(obs)
                 all_visited.add(key)
                 # Recursively enumerate all reachable states from this hand
+                enumeration_counter = {"calls": 0, "last_print": 0}
                 self._enumerate_states(
-                    obs, states_by_depth, max_depth=30, visited=all_visited
+                    obs,
+                    states_by_depth,
+                    max_depth=self.max_depth,
+                    visited=all_visited,
+                    enumeration_counter=enumeration_counter,
                 )
 
         print(
@@ -140,7 +194,11 @@ class DPSolver:
             states = states_by_depth[depth]
             print(f"  Processing depth {depth}: {len(states)} states")
 
-            for obs in states:
+            for state_idx, obs in enumerate(states):
+                if state_idx % 1000 == 0 and state_idx > 0:
+                    print(
+                        f"    Depth {depth}: {state_idx}/{len(states)} states computed..."
+                    )
                 self._compute_optimal_action(obs)
 
         print(f"DP solving complete! Total states: {len(self.policy)}")
@@ -151,13 +209,23 @@ class DPSolver:
         states_by_depth: dict[int, list[ObservableState]],
         max_depth: int,
         visited: set[str] | None = None,
+        enumeration_counter: dict[str, int] | None = None,
     ):
-        """Recursively enumerate all reachable states from a given state."""
+        """Recursively enumerate all reachable states from a given state.
+
+        Depth is based on position of last bid in total bid ordering,
+        not just the number of bids in history.
+        """
         if visited is None:
             visited = set()
+        if enumeration_counter is None:
+            enumeration_counter = {"calls": 0, "last_print": 0}
 
-        depth = len(obs.bid_history)
-        if depth > max_depth:
+        # Depth = position of last bid in total ordering (or 0 if no bids)
+        last_bid = obs.bid_history[-1] if obs.bid_history else None
+        depth = get_bid_position(last_bid, self.max_value, self.max_amount)
+
+        if depth >= max_depth:
             return
 
         key = state_key(obs)
@@ -170,47 +238,71 @@ class DPSolver:
 
         # Enumerate states reachable by making a bid
         last_bid = obs.bid_history[-1] if obs.bid_history else None
-        legal_bids = generate_all_legal_bids(last_bid)
+        legal_bids = generate_all_legal_bids(last_bid, self.max_value, self.max_amount)
 
         # For each legal bid, consider opponent's possible responses
-        # We need to consider all possible opponent responses (they depend on opponent's hand)
-        # So we'll enumerate states that could be reached
+        # Check ALL opponent hands to find all unique reachable states
         seen_next_states = set()
-        for bid in legal_bids:
+
+        for bid_idx, bid in enumerate(legal_bids):
             new_bid_history = obs.bid_history + [bid]
 
-            # Consider all possible opponent hands to determine their response
-            for hand2_tuple in self.all_hands:
+            # Check all opponent hands to find unique responses
+            unique_opponent_bids = set()
+            for hand_idx, hand2_tuple in enumerate(self.all_hands):
                 hand2 = list(hand2_tuple)
                 opponent_action = self.opponent_policy.get_action(
                     hand2, new_bid_history
                 )
 
                 if opponent_action is None:
-                    # Opponent calls LIAR - this is a terminal outcome, not a new state
-                    # The value will be computed in _compute_bid_value
+                    # Opponent calls LIAR - terminal outcome, not a new state
                     continue
                 else:
-                    # Opponent makes a bid - create new observable state
-                    opponent_bid_history = new_bid_history + [opponent_action]
-                    next_key = state_key(
-                        ObservableState(
-                            hand1=obs.hand1.copy(),
-                            bid_history=opponent_bid_history,
-                            game_status=GameStatus.ACTIVE,
-                        )
+                    # Track unique opponent bid (value, amount) pairs
+                    unique_opponent_bids.add(
+                        (opponent_action.value, opponent_action.amount)
                     )
-                    if next_key not in seen_next_states:
-                        seen_next_states.add(next_key)
-                        new_obs = ObservableState(
-                            hand1=obs.hand1.copy(),
-                            bid_history=opponent_bid_history,
-                            game_status=GameStatus.ACTIVE,
-                        )
-                        # Recursively enumerate from this state
-                        self._enumerate_states(
-                            new_obs, states_by_depth, max_depth, visited
-                        )
+
+                # Progress tracking: print every 10000 opponent hand checks
+                enumeration_counter["calls"] += 1
+                if (
+                    enumeration_counter["calls"] - enumeration_counter["last_print"]
+                    >= 10000
+                ):
+                    total_states = sum(
+                        len(states) for states in states_by_depth.values()
+                    )
+                    print(
+                        f"    Enumerating: {enumeration_counter['calls']} opponent checks, {total_states} states found..."
+                    )
+                    enumeration_counter["last_print"] = enumeration_counter["calls"]
+
+            # Create states for each unique opponent bid
+            for opp_value, opp_amount in unique_opponent_bids:
+                opponent_bid_history = new_bid_history + [Bid(opp_value, opp_amount)]
+                next_key = state_key(
+                    ObservableState(
+                        hand1=obs.hand1.copy(),
+                        bid_history=opponent_bid_history,
+                        game_status=GameStatus.ACTIVE,
+                    )
+                )
+                if next_key not in seen_next_states and next_key not in visited:
+                    seen_next_states.add(next_key)
+                    new_obs = ObservableState(
+                        hand1=obs.hand1.copy(),
+                        bid_history=opponent_bid_history,
+                        game_status=GameStatus.ACTIVE,
+                    )
+                    # Recursively enumerate from this state
+                    self._enumerate_states(
+                        new_obs,
+                        states_by_depth,
+                        max_depth,
+                        visited,
+                        enumeration_counter,
+                    )
 
     def _compute_optimal_action(self, obs: ObservableState) -> float:
         """Compute optimal action and value for a state using backward induction."""
@@ -238,7 +330,7 @@ class DPSolver:
 
         # Action 2: Make a bid
         last_bid = obs.bid_history[-1] if obs.bid_history else None
-        legal_bids = generate_all_legal_bids(last_bid)
+        legal_bids = generate_all_legal_bids(last_bid, self.max_value, self.max_amount)
 
         for bid in legal_bids:
             bid_value = self._compute_bid_value(obs, bid)

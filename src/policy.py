@@ -30,7 +30,9 @@ class OptimalPolicy:
 
         # Default policy file path
         if policy_file is None:
-            policy_file = f"policy_{num_dice_per_player}dice.json"
+            policy_file = os.path.join(
+                "policy", f"policy_{num_dice_per_player}dice.json"
+            )
 
         self.policy_file = policy_file
 
@@ -55,7 +57,7 @@ class OptimalPolicy:
             else:
                 self.policy[key] = action
 
-        print(f"Loaded policy from {filepath} ({len(self.policy)} states)")
+        # print(f"Loaded policy from {filepath} ({len(self.policy)} states)")
 
     def get_action(self, obs: ObservableState) -> Bid | None:
         """Returns Bid to make or None to call LIAR."""

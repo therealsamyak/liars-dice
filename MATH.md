@@ -5,20 +5,18 @@ Authors: Samyak Kakatur, Alexander Chang
 - Each player rolls N dice, hidden from the other players.
 - Each player creates a bid about the TOTAL game state (ex. three 3s, two 4s).
 - **Bidding rules (standard Liar's Dice):**
-  - Each subsequent bid must increase either the quantity OR the face value (or both)
-  - You can increase quantity while keeping same face value (e.g., "three 3s" → "four 3s")
-  - You can increase face value while keeping same quantity (e.g., "three 3s" → "three 4s")
-  - You can increase both quantity and face value (e.g., "three 3s" → "four 4s")
-  - You CANNOT decrease quantity when increasing face value (e.g., "three 3s" → "two 4s" is INVALID)
+  - Each subsequent bid must increase either the quantity OR the face value
+  - You can increase quantity while keeping same face value (e.g., "three 3s" -> "four 3s")
+  - You can increase face value with ANY quantity (e.g., "three 3s" -> "one 4s" or "three 3s" -> "five 4s")
   - You CANNOT decrease face value
   - You CANNOT decrease quantity when keeping same face value
   - Examples:
-    - "three 3s" → "four 3s" ✓ valid (increase quantity, same value)
-    - "three 3s" → "three 4s" ✓ valid (increase value, same quantity)
-    - "three 3s" → "four 4s" ✓ valid (increase both)
-    - "three 3s" → "two 4s" ✗ invalid (increase value but decrease quantity)
-    - "four 4s" → "three 3s" ✗ invalid (decrease both)
-    - "three 3s" → "two 3s" ✗ invalid (decrease quantity, same value)
+    - "three 3s" -> "four 3s" [VALID] (increase quantity, same value)
+    - "three 3s" -> "three 4s" [VALID] (increase value, same quantity)
+    - "three 3s" -> "one 4s" [VALID] (increase value, any quantity allowed)
+    - "three 3s" -> "five 4s" [VALID] (increase both)
+    - "three 3s" -> "two 3s" [INVALID] (decrease quantity, same value)
+    - "four 4s" -> "three 3s" [INVALID] (decrease value)
 - At any point, instead of bidding, a player can call 'LIAR!', ending the game.
   - If the bid is invalid (COUNT < Amount), the caller wins
   - If the bid is valid (COUNT >= Amount), the bidder wins
@@ -56,14 +54,14 @@ $T(s' \mid s, a) = \begin{cases}
 Where:
 $\text{LEGAL}(D) = \begin{cases}
 \text{True} & \text{if } D = \emptyset \text{ (first bid, any valid bid allowed)} \\
-\text{True} & \text{if } \text{DiceValue}_{\text{new}} > \text{DiceValue}_{\text{current}} \text{ and } \text{Amount}_{\text{new}} \ge \text{Amount}_{\text{current}} \\
+\text{True} & \text{if } \text{DiceValue}_{\text{new}} > \text{DiceValue}_{\text{current}} \text{ (any amount allowed when increasing value)} \\
 \text{True} & \text{if } \text{DiceValue}_{\text{new}} = \text{DiceValue}_{\text{current}} \text{ and } \text{Amount}_{\text{new}} > \text{Amount}_{\text{current}} \\
 \text{False} & \text{otherwise}
 \end{cases}$
 
 **Bid Priority Order:** When generating legal bids, priority is:
 
-1. First: increase face value (keeping same or higher quantity, ordered by value then amount, lowest first)
+1. First: increase face value (any quantity allowed, ordered by value then amount, lowest first)
 2. Then: same face value, increase amount
 
 - Hands $H_1, H_2$ remain constant throughout a single game. Only $D$ and $G_o$ change.
