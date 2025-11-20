@@ -60,18 +60,18 @@ class TruthTellingPolicy:
         A bid is truthful if: COUNT(H2, value) + N >= amount
         (we have c2 dice, opponent could have up to N dice of this value)
 
-        When increasing value, amount must be >= current amount (per MATH.md).
+        When increasing value, any amount is allowed (standard Liar's Dice rule).
         """
         # Try bids in priority order: increase value first, then increase amount
-        # Priority: (value+1, amount), (value+1, amount+1), ..., (6, amount), (6, amount+1), ...
+        # Priority: (value+1, 1), (value+1, 2), ..., (6, 1), (6, 2), ...
         #          then (value, amount+1), (value, amount+2), ...
 
-        # First, try increasing value (amount must be >= current amount)
+        # First, try increasing value (any amount allowed when increasing value)
         for value in range(last_bid.value + 1, 7):
             c2 = count_dice(hand2, value)
-            # Try amounts from current amount up to what we can truthfully bid
+            # Try amounts from 1 up to what we can truthfully bid
             max_truthful = c2 + self.num_dice_per_player
-            for amount in range(last_bid.amount, max_truthful + 1):
+            for amount in range(1, max_truthful + 1):
                 bid = Bid(value=value, amount=amount)
                 if is_legal_bid(bid, last_bid):
                     return bid
@@ -89,12 +89,12 @@ class TruthTellingPolicy:
     def _find_lowest_legal_bid(self, last_bid: Bid) -> Bid:
         """Find lowest legal bid (even if lying).
 
-        Priority order: increase value first (with same or higher amount), then increase amount.
-        When increasing value, amount must be >= current amount (per MATH.md).
+        Priority order: increase value first (any amount allowed), then increase amount.
+        When increasing value, any amount is allowed (standard Liar's Dice rule).
         """
-        # Try increasing value with minimum legal amount (same as current)
+        # Try increasing value with minimum amount (1)
         for value in range(last_bid.value + 1, 7):
-            bid = Bid(value=value, amount=last_bid.amount)
+            bid = Bid(value=value, amount=1)
             if is_legal_bid(bid, last_bid):
                 return bid
 

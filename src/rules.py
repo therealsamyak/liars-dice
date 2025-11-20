@@ -22,25 +22,23 @@ def is_legal_bid(new_bid: Bid, D_last: Bid | None) -> bool:
     LEGAL(D): Check if a bid is legal according to the rules.
 
     Standard Liar's Dice bidding rules:
-    - Each subsequent bid must increase either quantity OR face value (or both)
+    - Each subsequent bid must increase either quantity OR face value
     - You can increase quantity while keeping same face value
-    - You can increase face value while keeping same or higher quantity
-    - You can increase both quantity and face value
-    - You CANNOT decrease quantity when increasing face value
+    - You can increase face value with ANY quantity (even 1)
     - You CANNOT decrease face value
     - You CANNOT decrease quantity when keeping same face value
 
     Examples:
     - "three 3s" → "four 3s" ✓ valid (increase quantity, same value)
     - "three 3s" → "three 4s" ✓ valid (increase value, same quantity)
-    - "three 3s" → "four 4s" ✓ valid (increase both)
-    - "three 3s" → "two 4s" ✗ invalid (increase value but decrease quantity)
-    - "four 4s" → "three 3s" ✗ invalid (decrease both)
+    - "three 3s" → "one 4s" ✓ valid (increase value, any quantity allowed)
+    - "three 3s" → "five 4s" ✓ valid (increase both)
     - "three 3s" → "two 3s" ✗ invalid (decrease quantity, same value)
+    - "four 4s" → "three 3s" ✗ invalid (decrease value)
 
     LEGAL(D) = {
         True  if D = ∅ (first bid, any valid bid allowed)
-        True  if DiceValue_new > DiceValue_current and Amount_new >= Amount_current
+        True  if DiceValue_new > DiceValue_current (any amount allowed when increasing value)
         True  if DiceValue_new = DiceValue_current and Amount_new > Amount_current
         False otherwise
     }
@@ -49,9 +47,9 @@ def is_legal_bid(new_bid: Bid, D_last: Bid | None) -> bool:
         # D = ∅: first bid - any valid bid is allowed
         return True
 
-    # DiceValue_new > DiceValue_current and Amount_new >= Amount_current
-    # When increasing value, amount must be same or higher (cannot decrease)
-    if new_bid.value > D_last.value and new_bid.amount >= D_last.amount:
+    # DiceValue_new > DiceValue_current
+    # When increasing value, any amount is allowed (standard Liar's Dice rule)
+    if new_bid.value > D_last.value:
         return True
 
     # DiceValue_new = DiceValue_current and Amount_new > Amount_current
