@@ -4,7 +4,6 @@ import os
 
 from parameters import MAX_BID_AMOUNT, MAX_DICE_VALUE, NUM_DICE_PER_PLAYER
 from src.dp_solver import DPSolver
-from src.opponent_policies import TruthTellingPolicy
 
 
 def main():
@@ -17,12 +16,14 @@ def main():
     print(f"Number of dice per player: {num_dice}")
     print()
 
-    # Create opponent policy
-    opponent_policy = TruthTellingPolicy(num_dice)
-
     # Create DP solver
+    # Opponent policy is optional - if None, uses probability-based threshold from MATH.md
+    # TruthTellingPolicy is only used as fallback for bid selection when P_valid >= threshold
     solver = DPSolver(
-        num_dice, opponent_policy, max_value=MAX_DICE_VALUE, max_amount=MAX_BID_AMOUNT
+        num_dice,
+        opponent_policy=None,
+        max_value=MAX_DICE_VALUE,
+        max_amount=MAX_BID_AMOUNT,
     )
 
     # Solve

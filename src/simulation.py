@@ -41,8 +41,15 @@ class GameSimulation:
         """Roll N dice."""
         return [random.randint(1, 6) for _ in range(num_dice)]
 
-    def simulate_game(self, verbose: bool = True) -> tuple[int, State]:
-        """Simulate a complete game. Returns (winner, final_state)."""
+    def simulate_game(
+        self, verbose: bool = True, starting_player: int | None = None
+    ) -> tuple[int, State]:
+        """Simulate a complete game. Returns (winner, final_state).
+
+        Args:
+            verbose: Whether to print game details
+            starting_player: 1 for Player 1, 2 for Player 2. If None, randomly chooses.
+        """
         # Initialize game state
         hand1 = self.roll_dice(self.num_dice_per_player)
         hand2 = self.roll_dice(self.num_dice_per_player)
@@ -51,8 +58,9 @@ class GameSimulation:
             hand1=hand1, hand2=hand2, bid_history=[], game_status=GameStatus.ACTIVE
         )
 
-        # Randomly choose starting player
-        starting_player = random.randint(1, 2)
+        # Choose starting player
+        if starting_player is None:
+            starting_player = random.randint(1, 2)
 
         if verbose:
             print("=" * 60)

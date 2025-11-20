@@ -8,9 +8,10 @@ import json
 from collections import defaultdict
 from itertools import product
 
-from parameters import MAX_BID_AMOUNT, MAX_DICE_VALUE
+from parameters import MAX_BID_AMOUNT, MAX_DICE_VALUE, GAMMA, LIAR_THRESHOLD
 from src.game_state import Bid, GameStatus, ObservableState, State
 from src.opponent_policies import TruthTellingPolicy
+from src.probability import p_valid
 from src.rules import check_win_condition
 
 
@@ -122,12 +123,16 @@ class DPSolver:
     def __init__(
         self,
         num_dice_per_player: int,
-        opponent_policy: TruthTellingPolicy,
+        opponent_policy: TruthTellingPolicy | None = None,
         max_value: int = MAX_DICE_VALUE,
         max_amount: int = MAX_BID_AMOUNT,
     ):
         self.num_dice_per_player = num_dice_per_player
-        self.opponent_policy = opponent_policy
+        # Opponent policy only used as fallback for bid selection when P_valid >= threshold
+        # Primary decision (LIAR vs bid) uses probability-based threshold from MATH.md
+        self.opponent_policy = opponent_policy or TruthTellingPolicy(
+            num_dice_per_player
+        )
         self.max_value = max_value
         self.max_amount = max_amount
         self.value_function: dict[str, float] = {}
@@ -371,19 +376,25 @@ class DPSolver:
         return total_value
 
     def _compute_bid_value(self, obs: ObservableState, bid: Bid) -> float:
-        """Compute expected value of making a bid, marginalizing over opponent's hand."""
+        """Compute expected value of making a bid, marginalizing over opponent's hand.
+
+        Uses probability-based reasoning from MATH.md: opponent calls LIAR if
+        P_valid < LIAR_THRESHOLD, otherwise makes a bid (using fallback policy).
+        """
         new_bid_history = obs.bid_history + [bid]
         total_value = 0.0
 
-        # Marginalize over all possible opponent hands
+        # Marginalize over all possible opponent hands (uniform prior)
         for hand2_tuple in self.all_hands:
             hand2 = list(hand2_tuple)
 
-            # Get opponent's action given their hand and new bid history
-            opponent_action = self.opponent_policy.get_action(hand2, new_bid_history)
+            # Compute P_valid from opponent's perspective (they know their hand)
+            # P_valid = P(COUNT(H1 ∪ H2, bid.value) >= bid.amount | H2)
+            prob_valid = p_valid(bid, hand2, self.num_dice_per_player)
 
-            if opponent_action is None:
-                # Opponent calls LIAR - terminal state
+            if prob_valid < LIAR_THRESHOLD:
+                # Opponent calls LIAR based on probability threshold (MATH.md approach)
+                # Apply discount factor since this reward occurs one step in the future
                 state = State(
                     hand1=obs.hand1.copy(),
                     hand2=hand2,
@@ -391,20 +402,39 @@ class DPSolver:
                     game_status=GameStatus.GAME_OVER,
                 )
                 reward = compute_reward(state, caller=2, last_bid=bid)
-                total_value += reward * self.hand_prob
+                total_value += GAMMA * reward * self.hand_prob
             else:
-                # Opponent makes a bid - create new observable state
-                opponent_bid_history = new_bid_history + [opponent_action]
-                new_obs = ObservableState(
-                    hand1=obs.hand1.copy(),
-                    bid_history=opponent_bid_history,
-                    game_status=GameStatus.ACTIVE,
+                # Opponent makes a bid (P_valid >= threshold)
+                # Use fallback policy to determine which bid they make
+                opponent_action = self.opponent_policy.get_action(
+                    hand2, new_bid_history
                 )
 
-                # Recursively compute value of this new state
-                # (should already be computed due to backward induction)
-                value = self._compute_optimal_action(new_obs)
-                total_value += value * self.hand_prob
+                if opponent_action is None:
+                    # Fallback policy says call LIAR, but P_valid >= threshold
+                    # This shouldn't happen often, but handle it as terminal state
+                    state = State(
+                        hand1=obs.hand1.copy(),
+                        hand2=hand2,
+                        bid_history=new_bid_history.copy(),
+                        game_status=GameStatus.GAME_OVER,
+                    )
+                    reward = compute_reward(state, caller=2, last_bid=bid)
+                    total_value += GAMMA * reward * self.hand_prob
+                else:
+                    # Opponent makes a bid - create new observable state
+                    opponent_bid_history = new_bid_history + [opponent_action]
+                    new_obs = ObservableState(
+                        hand1=obs.hand1.copy(),
+                        bid_history=opponent_bid_history,
+                        game_status=GameStatus.ACTIVE,
+                    )
+
+                    # Recursively compute value of this new state
+                    # (should already be computed due to backward induction)
+                    # Apply discount factor to future rewards
+                    value = self._compute_optimal_action(new_obs)
+                    total_value += GAMMA * value * self.hand_prob
 
         return total_value
 
