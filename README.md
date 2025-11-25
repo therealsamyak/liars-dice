@@ -17,8 +17,8 @@ Run a single game simulation:
 
 ```bash
 uv run main.py
-python3 run main.py
-python run main.py
+python3 main.py
+python main.py
 ```
 
 ## Math
