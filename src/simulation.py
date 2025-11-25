@@ -23,17 +23,33 @@ class GameSimulation:
         self,
         num_dice_per_player: int = NUM_DICE_PER_PLAYER,
         player2_policy_type: str = "truth_telling",
+        player1_policy=None,
+        player2_policy=None,
     ):
         """
         Args:
             num_dice_per_player: Number of dice each player has
-            player2_policy_type: "truth_telling" or "optimal" (uses same policy as Player 1)
+            player2_policy_type: "truth_telling", "optimal", or "rl" (uses same policy as Player 1)
+            player1_policy: Optional pre-initialized policy for Player 1
+            player2_policy: Optional pre-initialized policy for Player 2
         """
         self.num_dice_per_player = num_dice_per_player
-        self.player1_policy = OptimalPolicy(num_dice_per_player)
+        
+        # Set player 1 policy
+        if player1_policy is not None:
+            self.player1_policy = player1_policy
+        else:
+            self.player1_policy = OptimalPolicy(num_dice_per_player)
 
-        if player2_policy_type == "optimal":
+        # Set player 2 policy
+        if player2_policy is not None:
+            self.player2_policy = player2_policy
+        elif player2_policy_type == "optimal":
             self.player2_policy = OptimalPolicy(num_dice_per_player)
+        elif player2_policy_type == "rl":
+            # For RL, expect it to be provided via player2_policy parameter
+            # Default to truth-telling if not provided
+            self.player2_policy = TruthTellingPolicy(num_dice_per_player)
         else:
             self.player2_policy = TruthTellingPolicy(num_dice_per_player)
 
@@ -159,8 +175,16 @@ class GameSimulation:
                         game_status=state.game_status,
                     )
                     action = self.player2_policy.get_action(obs2)
+                elif hasattr(self.player2_policy, 'get_action') and len(getattr(self.player2_policy.get_action, '__code__', type('', (), {'co_argcount': 2})).co_varnames) > 1:
+                    # RL policy or other policy that takes ObservableState
+                    obs2 = ObservableState(
+                        hand1=state.hand2,  # Player 2's hand is their "hand1"
+                        bid_history=state.bid_history.copy(),
+                        game_status=state.game_status,
+                    )
+                    action = self.player2_policy.get_action(obs2)
                 else:
-                    # Player 2 uses truth-telling policy
+                    # Player 2 uses truth-telling policy (hand, bid_history)
                     action = self.player2_policy.get_action(
                         state.hand2, state.bid_history
                     )
