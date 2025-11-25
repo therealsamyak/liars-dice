@@ -1,12 +1,111 @@
 """Main entry point for Liar's Dice simulation."""
 
+import argparse
 import os
 
 from parameters import NUM_DICE_PER_PLAYER, NUM_SIMULATIONS
 from src.simulation import GameSimulation
 
 
-def main():
+def main(args=None):
+    """Run simulations with optimal policy.
+    
+    Args:
+        args: Optional parsed arguments (for programmatic use)
+    """
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="Run Liar's Dice simulations with different policies"
+    )
+    parser.add_argument(
+        "--player1-policy",
+        type=str,
+        default="optimal",
+        choices=["optimal", "rl", "heuristic"],
+        help="Policy type for Player 1",
+    )
+    parser.add_argument(
+        "--player2-policy",
+        type=str,
+        default="truth_telling",
+        choices=["truth_telling", "optimal", "rl"],
+        help="Policy type for Player 2",
+    )
+    parser.add_argument(
+        "--rl-model-p1",
+        type=str,
+        default="rl_models/q_agent_final.json",
+        help="Path to RL model for Player 1",
+    )
+    parser.add_argument(
+        "--rl-model-p2",
+        type=str,
+        default="rl_models/q_agent_final.json",
+        help="Path to RL model for Player 2",
+    )
+    parser.add_argument(
+        "--num-simulations",
+        type=int,
+        default=NUM_SIMULATIONS,
+        help="Number of simulations to run",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Print detailed game output",
+    )
+    
+    if args is None:
+        args = parser.parse_args()
+    
+    print("=== Liar's Dice Simulation ===\n")
+    
+    # Load policies based on arguments
+    from src.policy import OptimalPolicy
+    
+    # Player 1 policy
+    if args.player1_policy == "rl":
+        if not os.path.exists(args.rl_model_p1):
+            print(f"Error: RL model not found: {args.rl_model_p1}")
+            print("Please train a model first using: python train_rl.py")
+            return
+        from src.q_learning_agent import QLearningAgent
+        from src.rl_policy import RLPolicy
+        
+        agent1 = QLearningAgent(num_dice_per_player=NUM_DICE_PER_PLAYER, player_id=1)
+        agent1.load(args.rl_model_p1)
+        agent1.set_training_mode(False)  # Evaluation mode
+        player1_policy = RLPolicy(agent1)
+        print(f"Player 1: RL Agent (loaded from {args.rl_model_p1})")
+    else:
+        player1_policy = OptimalPolicy(NUM_DICE_PER_PLAYER)
+        print("Player 1: Optimal DP Policy")
+    
+    # Player 2 policy
+    if args.player2_policy == "rl":
+        if not os.path.exists(args.rl_model_p2):
+            print(f"Error: RL model not found: {args.rl_model_p2}")
+            print("Please train a model first using: python train_rl.py")
+            return
+        from src.q_learning_agent import QLearningAgent
+        from src.rl_policy import RLPolicy
+        
+        agent2 = QLearningAgent(num_dice_per_player=NUM_DICE_PER_PLAYER, player_id=2)
+        agent2.load(args.rl_model_p2)
+        agent2.set_training_mode(False)  # Evaluation mode
+        player2_policy = RLPolicy(agent2)
+        print(f"Player 2: RL Agent (loaded from {args.rl_model_p2})")
+    elif args.player2_policy == "optimal":
+        player2_policy = OptimalPolicy(NUM_DICE_PER_PLAYER)
+        print("Player 2: Optimal DP Policy")
+    else:
+        player2_policy = None  # Will use truth-telling (default)
+        print("Player 2: Truth-Telling Policy")
+    
+    print()
+
+    num_dice = NUM_DICE_PER_PLAYER
     """Run simulations with optimal policy."""
     print("=== Liar's Dice Simulation ===\n")
 
@@ -21,7 +120,7 @@ def main():
             f"Using heuristic fallback for now.\n"
         )
 
-    num_simulations = NUM_SIMULATIONS
+    num_simulations = args.num_simulations
     results_truth_telling_p1_start = {"player1_wins": 0, "player2_wins": 0}
     results_truth_telling_p2_start = {"player1_wins": 0, "player2_wins": 0}
     results_optimal_p1_start = {"player1_wins": 0, "player2_wins": 0}
@@ -59,17 +158,21 @@ def main():
         simulation = GameSimulation(
             num_dice_per_player=num_dice,
             player2_policy_type="truth_telling",
+            player1_policy=player1_policy,
+            player2_policy=None,  # Use truth-telling
         )
 
-        print(f"\n{'=' * 60}")
-        print(
-            f"SIMULATION {simulation_idx}/{num_simulations} (Truth-Telling, P{starting_player} starts)"
-        )
-        print(f"{'=' * 60}")
+        if args.verbose:
+            print(f"\n{'=' * 60}")
+            print(
+                f"SIMULATION {simulation_idx}/{num_simulations} (Truth-Telling, P{starting_player} starts)"
+            )
+            print(f"{'=' * 60}")
         winner, _ = simulation.simulate_game(
-            verbose=True, starting_player=starting_player
+            verbose=args.verbose, starting_player=starting_player
         )
-        print(f"\n{'=' * 60}\n")
+        if args.verbose:
+            print(f"\n{'=' * 60}\n")
 
         if starting_player == 1:
             if winner == 1:
@@ -82,28 +185,32 @@ def main():
             else:
                 results_truth_telling_p2_start["player2_wins"] += 1
 
-        if simulation_idx % 10 == 0:
+        if simulation_idx % 10 == 0 and not args.verbose:
             print(f"Completed {simulation_idx}/{num_simulations} simulations...")
 
-    # Run optimal policy simulations
+    # Run optimal/custom policy simulations
     for i in range(num_optimal):
         starting_player = 1 if i < num_opt_p1_start else 2
         simulation_idx += 1
 
         simulation = GameSimulation(
             num_dice_per_player=num_dice,
-            player2_policy_type="optimal",
+            player2_policy_type=args.player2_policy if player2_policy else "optimal",
+            player1_policy=player1_policy,
+            player2_policy=player2_policy if player2_policy else None,
         )
 
-        print(f"\n{'=' * 60}")
-        print(
-            f"SIMULATION {simulation_idx}/{num_simulations} (Optimal, P{starting_player} starts)"
-        )
-        print(f"{'=' * 60}")
+        if args.verbose:
+            print(f"\n{'=' * 60}")
+            print(
+                f"SIMULATION {simulation_idx}/{num_simulations} (Optimal, P{starting_player} starts)"
+            )
+            print(f"{'=' * 60}")
         winner, _ = simulation.simulate_game(
-            verbose=True, starting_player=starting_player
+            verbose=args.verbose, starting_player=starting_player
         )
-        print(f"\n{'=' * 60}\n")
+        if args.verbose:
+            print(f"\n{'=' * 60}\n")
 
         if starting_player == 1:
             if winner == 1:

@@ -17,6 +17,14 @@ LIAR_THRESHOLD = 0.01  # Probability threshold below which we call LIAR
 # Simulation configuration
 NUM_SIMULATIONS = 200  # Total number of simulations to run
 
+# Reinforcement Learning configuration
+RL_LEARNING_RATE = 0.1  # Learning rate (alpha) for Q-Learning
+RL_DISCOUNT_FACTOR = 0.95  # Discount factor (gamma) - same as DP solver
+RL_EPSILON = 0.1  # Initial exploration rate
+RL_EPSILON_DECAY = 0.995  # Exploration rate decay per episode
+RL_EPSILON_MIN = 0.01  # Minimum exploration rate
+RL_TRAINING_EPISODES = 10000  # Number of episodes for training
+
 # Derived constants
 MAX_BID_AMOUNT = (
     NUM_DICE_PER_PLAYER * NUM_PLAYERS
