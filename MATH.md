@@ -4,7 +4,7 @@ Authors: Samyak Kakatur, Alexander Chang
 
 - Each player rolls N dice, hidden from the other players.
 - Each player creates a bid about the TOTAL game state (ex. three 3s, two 4s).
-- **Bidding rules (standard Liar's Dice):**
+- **Bidding rules:**
   - Each subsequent bid must increase either the quantity OR the face value
   - You can increase quantity while keeping same face value (e.g., "three 3s" -> "four 3s")
   - You can increase face value with ANY quantity (e.g., "three 3s" -> "one 4s" or "three 3s" -> "five 4s")

@@ -7,6 +7,7 @@ from collections import Counter
 from parameters import LIAR_THRESHOLD
 from src.game_state import Bid, ObservableState
 from src.probability import p_valid
+from src.rules import is_legal_bid
 
 
 def state_key(obs: ObservableState) -> str:
@@ -88,9 +89,14 @@ class OptimalPolicy:
                 most_common_value, most_common_count = counts.most_common(1)[0]
                 expected_opponent = self.num_dice_per_player // 6
                 amount = most_common_count + max(1, expected_opponent)
-                return Bid(value=most_common_value, amount=amount)
+                bid = Bid(value=most_common_value, amount=amount)
             else:
-                return Bid(value=1, amount=1)
+                bid = Bid(value=1, amount=1)
+            # Validate first bid (should always be legal, but check for safety)
+            if is_legal_bid(bid, None):
+                return bid
+            # Fallback to minimal bid if somehow invalid
+            return Bid(value=1, amount=1)
 
         # Calculate probability that the last bid is valid
         prob_valid = p_valid(last_bid, obs.hand1, self.num_dice_per_player)
@@ -105,11 +111,17 @@ class OptimalPolicy:
             c1 = sum(1 for die in obs.hand1 if die == new_value)
             expected_opponent = self.num_dice_per_player // 6
             new_amount = c1 + max(1, expected_opponent)
-            if new_value > last_bid.value or (
-                new_value == last_bid.value and new_amount > last_bid.amount
-            ):
-                return Bid(value=new_value, amount=new_amount)
+            bid = Bid(value=new_value, amount=new_amount)
+            # Validate bid is legal
+            if is_legal_bid(bid, last_bid):
+                return bid
 
         # Increase amount on same value
         new_amount = last_bid.amount + 1
-        return Bid(value=last_bid.value, amount=new_amount)
+        bid = Bid(value=last_bid.value, amount=new_amount)
+        # Validate bid is legal (should always be, but check for safety)
+        if is_legal_bid(bid, last_bid):
+            return bid
+
+        # Fallback: should not reach here, but if we do, call LIAR
+        return None
